@@ -47,18 +47,17 @@ services:
     container_name: superset_nginx
     restart: unless-stopped
     ports:
-      - "8087:80"
+      - "80:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-
   redis:
     image: redis:7
     container_name: superset_cache
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6380:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis:/data
 
@@ -102,7 +101,7 @@ services:
     container_name: superset_websocket
     build: ./superset-websocket
     ports:
-      - 8082:8080
+      - 8080:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -154,7 +153,7 @@ services:
     environment:
       # set this to false if you have perf issues running the npm i; npm run dev in-docker
       # if you do so, you have to run this manually on the host, which should perform better!
-      BUILD_SUPERSET_FRONTEND_IN_DOCKER: false 
+      BUILD_SUPERSET_FRONTEND_IN_DOCKER: true
       SCARF_ANALYTICS: "${SCARF_ANALYTICS:-}"
     container_name: superset_node
     command: ["/app/docker/docker-frontend.sh"]
