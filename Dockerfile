@@ -34,6 +34,7 @@ ARG DEV_MODE="false"
 ARG INCLUDE_CHROMIUM="true"
 ARG INCLUDE_FIREFOX="false"
 
+COPY ./sources.list /etc/apt/sources.list
 # Somehow we need python3 + build-essential on this side of the house to install node-gyp
 RUN apt-get update -qq \
     && apt-get install \
@@ -94,6 +95,7 @@ ENV LANG=C.UTF-8 \
     SUPERSET_HOME="/app/superset_home" \
     SUPERSET_PORT=8088
 
+COPY ./sources.list /etc/apt/sources.list
 RUN mkdir -p ${PYTHONPATH} superset/static requirements superset-frontend apache_superset.egg-info requirements \
     && useradd --user-group -d ${SUPERSET_HOME} -m --no-log-init --shell /bin/bash superset \
     && apt-get update -qq && apt-get install -yqq --no-install-recommends \
@@ -152,6 +154,7 @@ CMD ["/usr/bin/run-server.sh"]
 ######################################################################
 FROM lean AS dev
 
+COPY ./sources.list /etc/apt/sources.list
 USER root
 RUN apt-get update -qq \
     && apt-get install -yqq --no-install-recommends \
