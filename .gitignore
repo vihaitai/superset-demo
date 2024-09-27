@@ -42,7 +42,7 @@ build
 app.db
 apache_superset.egg-info/
 changelog.sh
-dist
+# dist
 dump.rdb
 env
 venv*
@@ -64,7 +64,7 @@ superset-websocket/config.json
 *.js.map
 node_modules
 npm-debug.log*
-superset/static/assets
+# superset/static/assets
 superset/static/version_info.json
 superset-frontend/**/esm/*
 superset-frontend/**/lib/*

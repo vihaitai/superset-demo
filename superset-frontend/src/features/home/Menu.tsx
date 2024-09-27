@@ -245,7 +245,7 @@ export function Menu({
   const standalone = getUrlParam(URL_PARAMS.standalone);
   if (standalone || uiConfig.hideNav) return <></>;
 
-  const renderLabel = (t) => {
+  const renderLabel = (t: string) => {
     if (t == '数据集') {
       return '数据管理'
     }

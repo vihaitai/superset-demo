@@ -31,12 +31,12 @@ import {
   SupersetTheme,
   SupersetClient,
   getExtensionsRegistry,
-  useTheme,
+  // useTheme,
 } from '@superset-ui/core';
 import { MainNav as Menu } from 'src/components/Menu';
 import { Tooltip } from 'src/components/Tooltip';
 import Icons from 'src/components/Icons';
-import Label from 'src/components/Label';
+// import Label from 'src/components/Label';
 import { findPermission } from 'src/utils/findPermission';
 import { isUserAdmin } from 'src/dashboard/util/permissionUtils';
 import {
@@ -100,9 +100,9 @@ const StyledAnchor = styled.a`
   padding-left: ${({ theme }) => theme.gridUnit}px;
 `;
 
-const tagStyles = (theme: SupersetTheme) => css`
-  color: ${theme.colors.grayscale.light5};
-`;
+// const tagStyles = (theme: SupersetTheme) => css`
+//   color: ${theme.colors.grayscale.light5};
+// `;
 
 const styledChildMenu = (theme: SupersetTheme) => css`
   &:hover {
@@ -352,7 +352,7 @@ const RightMenu = ({
     localStorage.removeItem('redux');
   };
 
-  const theme = useTheme();
+  // const theme = useTheme();
 
   return (
     <StyledDiv align={align}>
