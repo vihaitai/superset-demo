@@ -12267,20 +12267,23 @@ msgstr "键的模板值不受支持 %(key)s"
 msgid "Unsupported time grain: %(time_grain)s"
 msgstr "不支持的时间粒度：%(time_grain)s"
 
-
 msgid "Untitled Dataset"
 msgstr "未命名的数据集"
 
-
 msgid "Untitled Query"
 msgstr "未命名的查询"
+
+msgid "Untitled Query1"
+msgstr "未命名的查询1"
+
+msgid "Untitled Query %s"
+msgstr "未命名的查询%s"
 
 msgid "Untitled query"
 msgstr "未命名的查询"
 
 msgid "Update"
 msgstr "更新"
-
 
 msgid "Update chart"
 msgstr "数据图表保存"
@@ -13486,7 +13489,6 @@ msgstr "缩放"
 
 msgid "Zoom level of the map"
 msgstr "地图缩放等级"
-
 
 msgid "[ untitled dashboard ]"
 msgstr "未命名数据看板"

@@ -24,6 +24,7 @@ import {
   Route,
   useLocation,
 } from 'react-router-dom';
+import moment from 'moment';
 import { bindActionCreators } from 'redux';
 import { GlobalStyles } from 'src/GlobalStyles';
 import ErrorBoundary from 'src/components/ErrorBoundary';
@@ -46,6 +47,7 @@ import { ConfigProvider } from 'antd';
 setupApp();
 setupPlugins();
 setupExtensions();
+moment.locale('zh-cn')
 
 const bootstrapData = getBootstrapData();
 

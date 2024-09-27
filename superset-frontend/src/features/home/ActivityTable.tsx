@@ -179,6 +179,7 @@ export default function ActivityTable({
       ? editedCards
       : activityData[activeChild]
     ).map((entity: ActivityObject) => {
+      console.log(">>>>>", entity)
       const url = getEntityUrl(entity);
       const lastActionOn = getEntityLastActionOn(entity);
       return (
