@@ -1,24 +1,3 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-
-# pylint: disable=too-many-lines, too-many-arguments
-
-"""A collection of ORM sqlalchemy models for Superset"""
-
 from __future__ import annotations
 
 import builtins
@@ -59,26 +38,26 @@ from sqlalchemy.pool import NullPool
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql import ColumnElement, expression, Select
 
-from superset import app, db_engine_specs, is_feature_enabled
-from superset.commands.database.exceptions import DatabaseInvalidError
-from superset.constants import LRU_CACHE_MAX_SIZE, PASSWORD_MASK
-from superset.databases.utils import make_url_safe
-from superset.db_engine_specs.base import MetricType, TimeGrain
-from superset.extensions import (
+from data_source import app, db_engine_specs, is_feature_enabled
+from data_source.commands.database.exceptions import DatabaseInvalidError
+from data_source.constants import LRU_CACHE_MAX_SIZE, PASSWORD_MASK
+from data_source.databases.utils import make_url_safe
+from data_source.db_engine_specs.base import MetricType, TimeGrain
+from data_source.extensions import (
     cache_manager,
     encrypted_field_factory,
     event_logger,
     security_manager,
     ssh_manager_factory,
 )
-from superset.models.helpers import AuditMixinNullable, ImportExportMixin
-from superset.result_set import SupersetResultSet
-from superset.sql_parse import Table
-from superset.superset_typing import OAuth2ClientConfig, ResultSetColumnType
-from superset.utils import cache as cache_util, core as utils, json
-from superset.utils.backports import StrEnum
-from superset.utils.core import DatasourceName, get_username
-from superset.utils.oauth2 import get_oauth2_access_token, OAuth2ClientConfigSchema
+from data_source.models.helpers import AuditMixinNullable, ImportExportMixin
+from data_source.result_set import DataSourceResultSet
+from data_source.sql_parse import Table
+from data_source.data_source_typing import OAuth2ClientConfig, ResultSetColumnType
+from data_source.utils import cache as cache_util, core as utils, json
+from data_source.utils.backports import StrEnum
+from data_source.utils.core import DatasourceName, get_username
+from data_source.utils.oauth2 import get_oauth2_access_token, OAuth2ClientConfigSchema
 
 config = app.config
 custom_password_store = config["SQLALCHEMY_CUSTOM_PASSWORD_STORE"]
@@ -88,23 +67,19 @@ metadata = Model.metadata  # pylint: disable=no-member
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from superset.databases.ssh_tunnel.models import SSHTunnel
-    from superset.models.sql_lab import Query
+    from data_source.databases.ssh_tunnel.models import SSHTunnel
+    from data_source.models.sql_lab import Query
 
 DB_CONNECTION_MUTATOR = config["DB_CONNECTION_MUTATOR"]
 
 
-class KeyValue(Model):  # pylint: disable=too-few-public-methods
-    """Used for any type of key-value store"""
-
+class KeyValue(Model):  
     __tablename__ = "keyvalue"
     id = Column(Integer, primary_key=True)
     value = Column(utils.MediumText(), nullable=False)
 
 
 class CssTemplate(Model, AuditMixinNullable):
-    """CSS templates for dashboards"""
-
     __tablename__ = "css_templates"
     id = Column(Integer, primary_key=True)
     template_name = Column(String(250))
@@ -117,15 +92,12 @@ class ConfigurationMethod(StrEnum):
 
 
 class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable=too-many-public-methods
-    """An ORM object that stores Database related information"""
-
     __tablename__ = "dbs"
     type = "table"
     __table_args__ = (UniqueConstraint("database_name"),)
 
     id = Column(Integer, primary_key=True)
     verbose_name = Column(String(250), unique=True)
-    # short unique name, used in permissions
     database_name = Column(String(250), unique=True, nullable=False)
     sqlalchemy_uri = Column(String(1024), nullable=False)
     password = Column(encrypted_field_factory.create(String(1024)))
@@ -198,8 +170,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         try:
             return self.db_engine_spec.get_function_names(self)
         except Exception as ex:  # pylint: disable=broad-except
-            # function_names property is used in bulk APIs and should not hard crash
-            # more info in: https://github.com/apache/superset/issues/9678
             logger.error(
                 "Failed to fetch database function names with error: %s",
                 str(ex),
@@ -227,12 +197,10 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     @property
     def disable_data_preview(self) -> bool:
-        # this will prevent any 'trash value' strings from going through
         return self.get_extra().get("disable_data_preview", False) is True
 
     @property
     def disable_drill_to_detail(self) -> bool:
-        # this will prevent any 'trash value' strings from going through
         return self.get_extra().get("disable_drill_to_detail", False) is True
 
     @property
@@ -241,7 +209,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     @property
     def schema_options(self) -> dict[str, Any]:
-        """Additional schema display config for engines with complex schemas"""
         return self.get_extra().get("schema_options", {})
 
     @property
@@ -286,10 +253,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     @property
     def parameters(self) -> dict[str, Any]:
-        # Database parameters are a dictionary of values that are used to make up
-        # the sqlalchemy_uri
-        # When returning the parameters we should use the masked SQLAlchemy URI and the
-        # masked ``encrypted_extra`` to prevent exposing sensitive credentials.
         masked_uri = make_url_safe(self.sqlalchemy_uri)
         encrypted_config = {}
         if (masked_encrypted_extra := self.masked_encrypted_extra) is not None:
@@ -375,19 +338,11 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
     def set_sqlalchemy_uri(self, uri: str) -> None:
         conn = make_url_safe(uri.strip())
         if conn.password != PASSWORD_MASK and not custom_password_store:
-            # do not over-write the password with the password mask
             self.password = conn.password
         conn = conn.set(password=PASSWORD_MASK if conn.password else None)
         self.sqlalchemy_uri = str(conn)  # hides the password
 
     def get_effective_user(self, object_url: URL) -> str | None:
-        """
-        Get the effective user, especially during impersonation.
-
-        :param object_url: SQL Alchemy URL object
-        :return: The effective username
-        """
-
         return (
             username
             if (username := get_username())
@@ -405,15 +360,7 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         source: utils.QuerySource | None = None,
         override_ssh_tunnel: SSHTunnel | None = None,
     ) -> Engine:
-        """
-        Context manager for a SQLAlchemy engine.
-
-        This method will return a context manager for a SQLAlchemy engine. Using the
-        context manager (as opposed to the engine directly) is important because we need
-        to potentially establish SSH tunnels before the connection is created, and clean
-        them up once the engine is no longer used.
-        """
-        from superset.daos.database import (  # pylint: disable=import-outside-toplevel
+        from data_source.daos.database import (  # pylint: disable=import-outside-toplevel
             DatabaseDAO,
         )
 
@@ -424,7 +371,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         )
 
         if ssh_tunnel:
-            # if ssh_tunnel is available build engine with information
             engine_context = ssh_manager_factory.instance.create_tunnel(
                 ssh_tunnel=ssh_tunnel,
                 sqlalchemy_database_uri=sqlalchemy_uri,
@@ -494,9 +440,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
             if oauth2_config and hasattr(g, "user") and hasattr(g.user, "id")
             else None
         )
-        # If using MySQL or Presto for example, will set url.username
-        # If using Hive, will not do anything yet since that relies on a
-        # configuration parameter instead.
         sqlalchemy_url = self.db_engine_spec.get_url_for_impersonation(
             sqlalchemy_url,
             self.impersonate_user,
@@ -522,7 +465,7 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
         if DB_CONNECTION_MUTATOR:
             if not source and request and request.referrer:
-                if "/superset/dashboard/" in request.referrer:
+                if "/data_source/dashboard/" in request.referrer:
                     source = utils.QuerySource.DASHBOARD
                 elif "/explore/" in request.referrer:
                     source = utils.QuerySource.CHART
@@ -557,8 +500,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         ) as engine:
             try:
                 with closing(engine.raw_connection()) as conn:
-                    # pre-session queries are used to set the selected schema and, in the
-                    # future, the selected catalog
                     for prequery in self.db_engine_spec.get_prequeries(
                         database=self,
                         catalog=catalog,
@@ -575,31 +516,12 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
                 raise
 
     def get_default_catalog(self) -> str | None:
-        """
-        Return the default configured catalog for the database.
-        """
         return self.db_engine_spec.get_default_catalog(self)
 
     def get_default_schema(self, catalog: str | None) -> str | None:
-        """
-        Return the default schema for the database.
-        """
         return self.db_engine_spec.get_default_schema(self, catalog)
 
     def get_default_schema_for_query(self, query: Query) -> str | None:
-        """
-        Return the default schema for a given query.
-
-        This is used to determine if the user has access to a query that reads from table
-        names without a specific schema, eg:
-
-            SELECT * FROM `foo`
-
-        The schema of the `foo` table depends on the DB engine spec. Some DB engine specs
-        can change the default schema on a per-query basis; in other DB engine specs the
-        default schema is defined in the SQLAlchemy URI; and in others the default schema
-        might be determined by the database itself (like `public` for Postgres).
-        """
         return self.db_engine_spec.get_default_schema_for_query(self, query)
 
     @staticmethod
@@ -618,23 +540,12 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     @property
     def quote_identifier(self) -> Callable[[str], str]:
-        """Add quotes to potential identifier expressions if needed"""
         return self.get_dialect().identifier_preparer.quote
 
     def get_reserved_words(self) -> set[str]:
         return self.get_dialect().preparer.reserved_words
 
     def mutate_sql_based_on_config(self, sql_: str, is_split: bool = False) -> str:
-        """
-        Mutates the SQL query based on the app configuration.
-
-        Two config params here affect the behavior of the SQL query mutator:
-        - `SQL_QUERY_MUTATOR`: A user-provided function that mutates the SQL query.
-        - `MUTATE_AFTER_SPLIT`: If True, the SQL query mutator is only called after the
-          sql is broken down into smaller queries. If False, the SQL query mutator applies
-          on the group of queries as a whole. Here the called passes the context
-          as to whether the SQL is split or already.
-        """
         sql_mutator = config["SQL_QUERY_MUTATOR"]
         if sql_mutator and (is_split == config["MUTATE_AFTER_SPLIT"]):
             return sql_mutator(
@@ -678,12 +589,10 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
                 ):
                     self.db_engine_spec.execute(cursor, sql_, self)
                     if i < len(sqls) - 1:
-                        # If it's not the last, we don't keep the results
                         cursor.fetchall()
                     else:
-                        # Last query, fetch and process the results
                         data = self.db_engine_spec.fetch_data(cursor)
-                        result_set = SupersetResultSet(
+                        result_set = DataSourceResultSet(
                             data, cursor.description, self.db_engine_spec
                         )
                         df = result_set.to_pandas_df()
@@ -716,7 +625,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         latest_partition: bool = False,
         cols: list[ResultSetColumnType] | None = None,
     ) -> str:
-        """Generates a ``select *`` statement in the proper dialect"""
         with self.get_sqla_engine(catalog=table.catalog, schema=table.schema) as engine:
             return self.db_engine_spec.select_star(
                 self,
@@ -748,18 +656,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         catalog: str | None,
         schema: str,
     ) -> set[DatasourceName]:
-        """Parameters need to be passed as keyword arguments.
-
-        For unused parameters, they are referenced in
-        cache_util.memoized_func decorator.
-
-        :param catalog: optional catalog name
-        :param schema: schema name
-        :param cache: whether cache is enabled for the function
-        :param cache_timeout: timeout in seconds for the cache
-        :param force: whether to force refresh the cache
-        :return: The table/schema pairs
-        """
         try:
             with self.get_inspector(catalog=catalog, schema=schema) as inspector:
                 return {
@@ -782,18 +678,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         catalog: str | None,
         schema: str,
     ) -> set[DatasourceName]:
-        """Parameters need to be passed as keyword arguments.
-
-        For unused parameters, they are referenced in
-        cache_util.memoized_func decorator.
-
-        :param catalog: optional catalog name
-        :param schema: schema name
-        :param cache: whether cache is enabled for the function
-        :param cache_timeout: timeout in seconds for the cache
-        :param force: whether to force refresh the cache
-        :return: set of views
-        """
         try:
             with self.get_inspector(catalog=catalog, schema=schema) as inspector:
                 return {
@@ -831,13 +715,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         catalog: str | None = None,
         ssh_tunnel: SSHTunnel | None = None,
     ) -> set[str]:
-        """
-        Return the schemas in a given database
-
-        :param catalog: override default catalog
-        :param ssh_tunnel: SSH tunnel information needed to establish a connection
-        :return: schema list
-        """
         try:
             with self.get_inspector(
                 catalog=catalog,
@@ -859,12 +736,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         *,
         ssh_tunnel: SSHTunnel | None = None,
     ) -> set[str]:
-        """
-        Return the catalogs in a given database
-
-        :param ssh_tunnel: SSH tunnel information needed to establish a connection
-        :return: catalog list
-        """
         try:
             with self.get_inspector(ssh_tunnel=ssh_tunnel) as inspector:
                 return self.db_engine_spec.get_catalog_names(self, inspector)
@@ -888,20 +759,11 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         try:
             driver = url.get_driver_name()
         except NoSuchModuleError:
-            # can't load the driver, fallback for backwards compatibility
             driver = None
 
         return db_engine_specs.get_engine_spec(backend, driver)
 
     def grains(self) -> tuple[TimeGrain, ...]:
-        """Defines time granularity database-specific expressions.
-
-        The idea here is to make it easy for users to change the time grain
-        from a datetime (maybe the source grain is arbitrary timestamps, daily
-        or 5 minutes increments) to another, "truncated" datetime. Since
-        each database has slightly different but similar datetime functions,
-        this allows a mapping between database engines and actual functions.
-        """
         return self.db_engine_spec.get_time_grains()
 
     def get_extra(self) -> dict[str, Any]:
@@ -1008,8 +870,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         try:
             conn = make_url_safe(self.sqlalchemy_uri)
         except DatabaseInvalidError:
-            # if the URI is invalid, ignore and return a placeholder url
-            # (so users see 500 less often)
             return "dialect://invalid_uri"
         if custom_password_store:
             conn = conn.set(password=custom_password_store(conn))
@@ -1019,7 +879,7 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     @property
     def sql_url(self) -> str:
-        return f"/superset/sql/{self.id}/"
+        return f"/data_source/sql/{self.id}/"
 
     @hybrid_property
     def perm(self) -> str:
@@ -1036,7 +896,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
 
     def has_table(self, table: Table) -> bool:
         with self.get_sqla_engine(catalog=table.catalog, schema=table.schema) as engine:
-            # do not pass "" as an empty schema; force null
             return engine.has_table(table.table, table.schema or None)
 
     def has_view(self, table: Table) -> bool:
@@ -1060,13 +919,7 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
     def make_sqla_column_compatible(
         self, sqla_col: ColumnElement, label: str | None = None
     ) -> ColumnElement:
-        """Takes a sqlalchemy column object and adds label info if supported by engine.
-        :param sqla_col: sqlalchemy column instance
-        :param label: alias/label that column is expected to have
-        :return: either a sql alchemy column or label instance if supported by engine
-        """
         label_expected = label or sqla_col.name
-        # add quotes to tables
         if self.db_engine_spec.get_allows_alias_in_select(self):
             label = self.db_engine_spec.make_label_compatible(label_expected)
             sqla_col = sqla_col.label(label)
@@ -1074,27 +927,11 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         return sqla_col
 
     def is_oauth2_enabled(self) -> bool:
-        """
-        Is OAuth2 enabled in the database for authentication?
-
-        Currently this checks for configuration stored in the database `extra`, and then
-        for a global config at the DB engine spec level. In the future we want to allow
-        admins to create custom OAuth2 clients from the Superset UI, and assign them to
-        specific databases.
-        """
         encrypted_extra = json.loads(self.encrypted_extra or "{}")
         oauth2_client_info = encrypted_extra.get("oauth2_client_info", {})
         return bool(oauth2_client_info) or self.db_engine_spec.is_oauth2_enabled()
 
     def get_oauth2_config(self) -> OAuth2ClientConfig | None:
-        """
-        Return OAuth2 client configuration.
-
-        Currently this checks for configuration stored in the database `extra`, and then
-        for a global config at the DB engine spec level. In the future we want to allow
-        admins to create custom OAuth2 clients from the Superset UI, and assign them to
-        specific databases.
-        """
         encrypted_extra = json.loads(self.encrypted_extra or "{}")
         if oauth2_client_info := encrypted_extra.get("oauth2_client_info"):
             schema = OAuth2ClientConfigSchema()
@@ -1104,13 +941,6 @@ class Database(Model, AuditMixinNullable, ImportExportMixin):  # pylint: disable
         return self.db_engine_spec.get_oauth2_config()
 
     def start_oauth2_dance(self) -> None:
-        """
-        Start the OAuth2 dance.
-
-        This method is called when an OAuth2 error is encountered, and the database is
-        configured to use OAuth2 for authentication. It raises an exception that will
-        trigger the OAuth2 dance in the frontend.
-        """
         return self.db_engine_spec.start_oauth2_dance(self)
 
 
@@ -1120,10 +950,6 @@ sqla.event.listen(Database, "after_delete", security_manager.database_after_dele
 
 
 class DatabaseUserOAuth2Tokens(Model, AuditMixinNullable):
-    """
-    Store OAuth2 tokens, for authenticating to DBs using user personal tokens.
-    """
-
     __tablename__ = "database_user_oauth2_tokens"
     __table_args__ = (sqla.Index("idx_user_id_database_id", "user_id", "database_id"),)
 
@@ -1149,8 +975,6 @@ class DatabaseUserOAuth2Tokens(Model, AuditMixinNullable):
 
 
 class Log(Model):  # pylint: disable=too-few-public-methods
-    """ORM object used to log Superset actions to the database"""
-
     __tablename__ = "logs"
 
     id = Column(Integer, primary_key=True)
